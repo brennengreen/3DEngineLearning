@@ -47,6 +47,7 @@ struct mesh
 				s >> junk >> v.x >> v.y >> v.z;
 				verts.push_back(v);
 			}
+
 			if (line[0] == 'f')
 			{
 				int f[3];
@@ -77,6 +78,7 @@ private:
 	mat4x4 matProj;
 
 	vec3d vCamera;
+	vec3d vLookDir;
 
 	float fTheta;
 
@@ -93,10 +95,10 @@ private:
 	mat4x4 Matrix_MakeIdentity()
 	{
 		mat4x4 matrix;
-		matrix.m[0][0] = 1.f;
-		matrix.m[1][1] = 1.f;
-		matrix.m[2][2] = 1.f;
-		matrix.m[3][3] = 1.f;
+		matrix.m[0][0] = 1.0f;
+		matrix.m[1][1] = 1.0f;
+		matrix.m[2][2] = 1.0f;
+		matrix.m[3][3] = 1.0f;
 		return matrix;
 	}
 
@@ -171,6 +173,43 @@ private:
 		return matrix;
 	}
 
+	mat4x4 Matrix_PointAt(vec3d &pos, vec3d &target, vec3d &up)
+	{
+		// Calculate new forward direction
+		vec3d newForward = Vector_Sub(target, pos);
+		newForward = Vector_Normalise(newForward);
+
+		// Calculate new Up direction
+		vec3d a = Vector_Mul(newForward, Vector_DotProduct(up, newForward));
+		vec3d newUp = Vector_Sub(up, a);
+		newUp = Vector_Normalise(newUp);
+
+		// New Right direction is easy, its just cross product
+		vec3d newRight = Vector_CrossProduct(newUp, newForward);
+
+		// Construct Dimensioning and Translation Matrix	
+		mat4x4 matrix;
+		matrix.m[0][0] = newRight.x;	matrix.m[0][1] = newRight.y;	matrix.m[0][2] = newRight.z;	matrix.m[0][3] = 0.0f;
+		matrix.m[1][0] = newUp.x;		matrix.m[1][1] = newUp.y;		matrix.m[1][2] = newUp.z;		matrix.m[1][3] = 0.0f;
+		matrix.m[2][0] = newForward.x;	matrix.m[2][1] = newForward.y;	matrix.m[2][2] = newForward.z;	matrix.m[2][3] = 0.0f;
+		matrix.m[3][0] = pos.x;			matrix.m[3][1] = pos.y;			matrix.m[3][2] = pos.z;			matrix.m[3][3] = 1.0f;
+		return matrix;
+
+	}
+
+	mat4x4 Matrix_QuickInverse(mat4x4 &m) // Only for Rotation/Translation Matrices
+	{
+		mat4x4 matrix;
+		matrix.m[0][0] = m.m[0][0]; matrix.m[0][1] = m.m[1][0]; matrix.m[0][2] = m.m[2][0]; matrix.m[0][3] = 0.0f;
+		matrix.m[1][0] = m.m[0][1]; matrix.m[1][1] = m.m[1][1]; matrix.m[1][2] = m.m[2][1]; matrix.m[1][3] = 0.0f;
+		matrix.m[2][0] = m.m[0][2]; matrix.m[2][1] = m.m[1][2]; matrix.m[2][2] = m.m[2][2]; matrix.m[2][3] = 0.0f;
+		matrix.m[3][0] = -(m.m[3][0] * matrix.m[0][0] + m.m[3][1] * matrix.m[1][0] + m.m[3][2] * matrix.m[2][0]);
+		matrix.m[3][1] = -(m.m[3][0] * matrix.m[0][1] + m.m[3][1] * matrix.m[1][1] + m.m[3][2] * matrix.m[2][1]);
+		matrix.m[3][2] = -(m.m[3][0] * matrix.m[0][2] + m.m[3][1] * matrix.m[1][2] + m.m[3][2] * matrix.m[2][2]);
+		matrix.m[3][3] = 1.0f;
+		return matrix;
+	}
+
 	vec3d Vector_Add(vec3d &v1, vec3d &v2)
 	{
 		return { v1.x + v2.x, v1.y + v2.y, v1.z + v2.z };
@@ -193,9 +232,9 @@ private:
 
 	float Vector_DotProduct(vec3d &v1, vec3d &v2)
 	{
-		return  v1.x*v2.x + v1.y*v2.y + v1.z*v2.z;
+		return v1.x*v2.x + v1.y*v2.y + v1.z * v2.z;
 	}
-	
+
 	float Vector_Length(vec3d &v)
 	{
 		return sqrtf(Vector_DotProduct(v, v));
@@ -255,7 +294,9 @@ private:
 public:
 	bool OnUserCreate() override
 	{
-		if (!meshCube.LoadFromObjectFile("shape.obj")) {
+
+
+		if (!meshCube.LoadFromObjectFile("axis.obj")) {
 			return false;
 		}
 
@@ -267,45 +308,73 @@ public:
 
 	bool OnUserUpdate(float fElapsedTime) override
 	{
+		if (GetKey(VK_UP).bHeld)
+			vCamera.y += 8.f * fElapsedTime;
+		
+		if (GetKey(VK_DOWN).bHeld)
+			vCamera.y -= 8.f * fElapsedTime;
+		
+		if (GetKey(VK_RIGHT).bHeld)
+			vCamera.x += 8.f * fElapsedTime;
+
+		if (GetKey(VK_LEFT).bHeld)
+			vCamera.x -= 8.f * fElapsedTime;
+
+
+
 		Fill(0, 0, ScreenWidth(), ScreenHeight(), PIXEL_SOLID, FG_BLACK);
 
+		// Set up "World Tranmsform" though not updating theta 
+		// makes this a bit redundant
 		mat4x4 matRotZ, matRotX;
-		fTheta += 1.f * fElapsedTime;
-
+		//fTheta += 1.0f * fElapsedTime; // Uncomment to spin me right round baby right round
 		matRotZ = Matrix_MakeRotationZ(fTheta * 0.5f);
 		matRotX = Matrix_MakeRotationX(fTheta);
-
 		mat4x4 matTrans;
-		matTrans = Matrix_MakeTranslation(0.f, 0.f, 16.f);
+		matTrans = Matrix_MakeTranslation(0.f, 0.f, 5.f);
 
 		mat4x4 matWorld;
 		matWorld = Matrix_MakeIdentity();
 		matWorld = Matrix_MultiplyMatrix(matRotZ, matRotX);
 		matWorld = Matrix_MultiplyMatrix(matWorld, matTrans);
 
+		vLookDir = { 0,0,1 };
+		vec3d vUp = { 0,1,0 };
+		vec3d vTarget = Vector_Add(vCamera, vLookDir);
+
+		mat4x4 matCamera = Matrix_PointAt(vCamera, vTarget, vUp);
+
+		// Make a view matrix from camera
+		mat4x4 matView = Matrix_QuickInverse(matCamera);
+
 		std::vector<triangle> vecTrianglesToRaster;
 		for (auto tri : meshCube.tris)
 		{
-			triangle triProjected, triTransformed;
-			
+
+			triangle triProjected, triTransformed, triViewed;
+
+			// World Matrix Transform
 			triTransformed.p[0] = Matrix_MultiplyVector(matWorld, tri.p[0]);
 			triTransformed.p[1] = Matrix_MultiplyVector(matWorld, tri.p[1]);
 			triTransformed.p[2] = Matrix_MultiplyVector(matWorld, tri.p[2]);
 
-
+			// Calculate triangle Normal
 			vec3d normal, line1, line2;
-			
+
+			// Get lines either side of triangle
 			line1 = Vector_Sub(triTransformed.p[1], triTransformed.p[0]);
 			line2 = Vector_Sub(triTransformed.p[2], triTransformed.p[0]);
-			
+
+			// Take cross product of lines to get normal to triangle surface
 			normal = Vector_CrossProduct(line1, line2);
 
+			// You normally need to normalise a normal!
 			normal = Vector_Normalise(normal);
 
 			vec3d vCameraRay = Vector_Sub(triTransformed.p[0], vCamera);
 			if (Vector_DotProduct(normal, vCameraRay) < 0.0f)
 			{
-				vec3d light_direction = { 0.f, 0.f, -1.f };
+				vec3d light_direction = { 0.f, 1.f, -1.f };
 				light_direction = Vector_Normalise(light_direction);
 
 				// How aligned are light direction and triangle surface normal 
@@ -315,10 +384,15 @@ public:
 				triTransformed.col = c.Attributes;
 				triTransformed.sym = c.Char.UnicodeChar;
 
+				// Convert World Space to View Space
+				triViewed.p[0] = Matrix_MultiplyVector(matView, triTransformed.p[0]);
+				triViewed.p[1] = Matrix_MultiplyVector(matView, triTransformed.p[1]);
+				triViewed.p[2] = Matrix_MultiplyVector(matView, triTransformed.p[2]);
+
 				// Project triangles from 3D --> 2D
-				triProjected.p[0] = Matrix_MultiplyVector(matProj, triTransformed.p[0]);
-				triProjected.p[1] = Matrix_MultiplyVector(matProj, triTransformed.p[1]);
-				triProjected.p[2] = Matrix_MultiplyVector(matProj, triTransformed.p[2]);
+				triProjected.p[0] = Matrix_MultiplyVector(matProj, triViewed.p[0]);
+				triProjected.p[1] = Matrix_MultiplyVector(matProj, triViewed.p[1]);
+				triProjected.p[2] = Matrix_MultiplyVector(matProj, triViewed.p[2]);
 				triProjected.col = triTransformed.col;
 				triProjected.sym = triTransformed.sym;
 
@@ -353,6 +427,7 @@ public:
 			return z1 > z2;
 		});
 
+
 		for (auto &triProjected : vecTrianglesToRaster)
 		{
 			// Rasterize triangle
@@ -361,10 +436,10 @@ public:
 				triProjected.p[2].x, triProjected.p[2].y,
 				triProjected.sym, triProjected.col);
 
-			/*DrawTriangle(triProjected.p[0].x, triProjected.p[0].y,
+			DrawTriangle(triProjected.p[0].x, triProjected.p[0].y,
 			triProjected.p[1].x, triProjected.p[1].y,
 			triProjected.p[2].x, triProjected.p[2].y,
-			PIXEL_SOLID, FG_BLACK);*/
+			PIXEL_SOLID, FG_BLACK);
 		}
 
 		return true;

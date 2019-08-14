@@ -23,10 +23,13 @@
     <ClInclude Include="olcConsoleGameEngine.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <Text Include="Text.txt">
+    <ResourceCompile Include="olcEngine3D.rc">
       <Filter>Resource Files</Filter>
-    </Text>
+    </ResourceCompile>
   </ItemGroup>
 </Project>
