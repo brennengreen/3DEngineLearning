@@ -330,6 +330,8 @@ public:
 		//fTheta += 1.0f * fElapsedTime; // Uncomment to spin me right round baby right round
 		matRotZ = Matrix_MakeRotationZ(fTheta * 0.5f);
 		matRotX = Matrix_MakeRotationX(fTheta);
+
+
 		mat4x4 matTrans;
 		matTrans = Matrix_MakeTranslation(0.f, 0.f, 5.f);
 
@@ -371,23 +373,29 @@ public:
 			// You normally need to normalise a normal!
 			normal = Vector_Normalise(normal);
 
+			// Get Ray from triangle to camera
 			vec3d vCameraRay = Vector_Sub(triTransformed.p[0], vCamera);
+
 			if (Vector_DotProduct(normal, vCameraRay) < 0.0f)
 			{
-				vec3d light_direction = { 0.f, 1.f, -1.f };
+				// Illumination
+				vec3d light_direction = { 0.0f, 1.0f, -1.0f };
 				light_direction = Vector_Normalise(light_direction);
 
-				// How aligned are light direction and triangle surface normal 
+				// How "aligned" are light direction and triangle surface normal?
 				float dp = max(0.1f, Vector_DotProduct(light_direction, normal));
 
+				// Choose console colours as required (much easier with RGB)
 				CHAR_INFO c = GetColour(dp);
 				triTransformed.col = c.Attributes;
 				triTransformed.sym = c.Char.UnicodeChar;
 
-				// Convert World Space to View Space
+				// Convert World Space --> View Space
 				triViewed.p[0] = Matrix_MultiplyVector(matView, triTransformed.p[0]);
 				triViewed.p[1] = Matrix_MultiplyVector(matView, triTransformed.p[1]);
 				triViewed.p[2] = Matrix_MultiplyVector(matView, triTransformed.p[2]);
+				triViewed.sym = triTransformed.sym;
+				triViewed.col = triTransformed.col;
 
 				// Project triangles from 3D --> 2D
 				triProjected.p[0] = Matrix_MultiplyVector(matProj, triViewed.p[0]);
@@ -402,11 +410,11 @@ public:
 				triProjected.p[1] = Vector_Div(triProjected.p[1], triProjected.p[1].w);
 				triProjected.p[2] = Vector_Div(triProjected.p[2], triProjected.p[2].w);
 
-				vec3d vOffsetView = { 1, 1, 0 };
+				// Offset verts into visible normalised space
+				vec3d vOffsetView = { 1,1,0 };
 				triProjected.p[0] = Vector_Add(triProjected.p[0], vOffsetView);
 				triProjected.p[1] = Vector_Add(triProjected.p[1], vOffsetView);
 				triProjected.p[2] = Vector_Add(triProjected.p[2], vOffsetView);
-
 				triProjected.p[0].x *= 0.5f * (float)ScreenWidth();
 				triProjected.p[0].y *= 0.5f * (float)ScreenHeight();
 				triProjected.p[1].x *= 0.5f * (float)ScreenWidth();
@@ -436,10 +444,10 @@ public:
 				triProjected.p[2].x, triProjected.p[2].y,
 				triProjected.sym, triProjected.col);
 
-			DrawTriangle(triProjected.p[0].x, triProjected.p[0].y,
+			/*DrawTriangle(triProjected.p[0].x, triProjected.p[0].y,
 			triProjected.p[1].x, triProjected.p[1].y,
 			triProjected.p[2].x, triProjected.p[2].y,
-			PIXEL_SOLID, FG_BLACK);
+			PIXEL_SOLID, FG_BLACK);*/
 		}
 
 		return true;
@@ -452,9 +460,5 @@ int main()
 	olcEngine3D demo;
 	if (demo.ConstructConsole(256, 240, 4, 4))
 		demo.Start();
-	else
-		std::cout << "Error Starting Console";
-
-
 	return 0;
 }
